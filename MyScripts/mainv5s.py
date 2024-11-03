@@ -1,6 +1,8 @@
 import torch
 import cv2
 import warnings
+import numpy as np
+import time
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Load YOLOv5 model
@@ -20,6 +22,15 @@ car_class_id = 2
 # Assuming class ID for motorcycle is 3
 motorcycle_class_id = 3
 
+# Initialize trackers
+left_tracker = cv2.TrackerCSRT_create()
+right_tracker = cv2.TrackerCSRT_create()
+left_initBB = None
+right_initBB = None
+
+# Start time for tracking
+start_time = None
+
 # Loop through each frame
 while cap.isOpened():
     ret, frame = cap.read()
@@ -38,12 +49,45 @@ while cap.isOpened():
     # Count the number of vehicles
     vehicle_count = len(filtered_results)
 
-    # Render the filtered results on the frame
-    for result in filtered_results:
-        x1, y1, x2, y2, conf, cls = result
-        label = f'{model.names[int(cls)]} {conf:.2f}'
-        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-        cv2.putText(frame, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+    # Find the most left and most right vehicles
+    if len(filtered_results) > 0:
+        left_vehicle = min(filtered_results, key=lambda x: x[0])
+        right_vehicle = max(filtered_results, key=lambda x: x[2])
+
+        # Initialize left tracker
+        if left_initBB is None:
+            x1, y1, x2, y2, conf, cls = left_vehicle
+            left_initBB = (int(x1), int(y1), int(x2 - x1), int(y2 - y1))
+            left_tracker.init(frame, left_initBB)
+            start_time = time.time()  # Start the timer
+
+        # Initialize right tracker
+        if right_initBB is None:
+            x1, y1, x2, y2, conf, cls = right_vehicle
+            right_initBB = (int(x1), int(y1), int(x2 - x1), int(y2 - y1))
+            right_tracker.init(frame, right_initBB)
+            start_time = time.time()  # Start the timer
+
+    # Update trackers and draw bounding boxes
+    elapsed_time = time.time() - start_time if start_time else 0
+    if elapsed_time <= 2:
+        if left_initBB is not None:
+            (left_success, left_box) = left_tracker.update(frame)
+            if left_success:
+                (x, y, w, h) = [int(v) for v in left_box]
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                cv2.putText(frame, "Left Tracking", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+        if right_initBB is not None:
+            (right_success, right_box) = right_tracker.update(frame)
+            if right_success:
+                (x, y, w, h) = [int(v) for v in right_box]
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                cv2.putText(frame, "Right Tracking", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    else:
+        # Draw a line across the full screen
+        height, width = frame.shape[:2]
+        cv2.line(frame, (0, height // 2), (width, height // 2), (0, 0, 255), 2)
 
     # Display the vehicle count on the top-left corner
     count_label = f'Vehicles: {vehicle_count}'
