@@ -65,6 +65,6 @@ for i in indices:
     cv2.putText(original_img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
 # Display the image
-# cv2.imshow("YOLOv5 Detection", original_img)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
+cv2.imshow("YOLOv5 Detection", original_img)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
